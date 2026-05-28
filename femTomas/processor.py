@@ -378,7 +378,7 @@ if __name__ == '__main__':
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     import femTomas.config as config
 
-    def get_user_hardware_config():
+    def get_user_hardware_config(defaults: bool = False):
         print("=== Tomasulo Simulator Hardware Configuration ===")
         default_fu_config = {
             "LOAD":     {"rs_count": 2, "latency": 6},
@@ -390,6 +390,13 @@ if __name__ == '__main__':
             "NOR":      {"rs_count": 2, "latency": 1},
             "MUL":      {"rs_count": 2, "latency": 10},
         }
+        default_pipeline_width = 2
+        if(defaults):
+            print("Using default hardware configuration:")
+            for fu, vals in default_fu_config.items():
+                print(f"{fu}: RS Count = {vals['rs_count']}, Latency = {vals['latency']} cycles")
+            print("Using default pipeline width: {default_pipeline_width} instruction per cycle")
+            return default_fu_config, default_pipeline_width
         print("Press Enter to accept the default value shown in [brackets].")
         fu_config = {}
         for fu, vals in default_fu_config.items():
@@ -414,7 +421,7 @@ if __name__ == '__main__':
         return fu_config, pipeline_width
 
     # Get user hardware config interactively
-    user_fu_config, user_pipeline_width = get_user_hardware_config()
+    user_fu_config, user_pipeline_width = get_user_hardware_config(True) # Pass True to use defaults without prompting
 
     processor = Processor(fu_config=user_fu_config, pipeline_width=user_pipeline_width)
     
