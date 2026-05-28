@@ -15,9 +15,6 @@ MAX_CYCLES = 50  # Maximum cycles to prevent infinite loops in tests
 FU_CONFIG = {
     "LOAD":     {"rs_count": 2, "latency": 6},   # 2 (address) + 4 (memory read)
     "STORE":    {"rs_count": 2, "latency": 6},   # 2 (address) + 4 (memory write)
-    "BEQ":      {"rs_count": 2, "latency": 1},
-    "CALL":     {"rs_count": 1, "latency": 1},   # For CALL/JAL
-    "RET":      {"rs_count": 1, "latency": 1},   # For RET
     "ADD_SUB":  {"rs_count": 4, "latency": 2},
     "MUL":      {"rs_count": 2, "latency": 10}, # For MUL and DIV
 }
