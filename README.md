@@ -2,6 +2,9 @@
 
 Simulador educacional do algoritmo de Tomasulo com interface em Streamlit.
 
+## Interface web:
+acesso via: [Inserir Link](http://)
+
 ## Execução via terminal:
 Rodar o codigo completo do processador, incluindo a execução dos testes, diretamente pelo terminal:
 ```powershell
@@ -23,7 +26,7 @@ streamlit run femTomas/app.py
 # Registradores
 - 8 Registradores: R0-R7
 - R0 é sempre zero (hardwired)
-
+- Renaming Table (RAT) implementada
 # Instruções
 
 ## Implementadas e Testadas:
@@ -32,20 +35,17 @@ streamlit run femTomas/app.py
   - SUB;
   - MUL;
   - DIV;
-  
-## Não Testadas
-STORE
-LOAD
-
+  - STORE
+  - LOAD
+  - HALT
+  - NOP
 
 ## A Ser implementadas:
 JMP
 BEQ
 JAL
 RET
-NOP
-HALT
 
-# RS e FU
+# Reserve Stations e Functional Units
 - 1 FU para cada RS
 - MUL e DIV compartilham a mesma FU

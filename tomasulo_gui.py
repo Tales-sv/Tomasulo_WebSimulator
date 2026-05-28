@@ -68,12 +68,58 @@ st.dataframe(pd.DataFrame(config_table))
 
 # --- Program Input ---
 st.header("1. Load Assembly Program")
-prog_source = st.radio("Input Method", ["Paste", "Upload File"])
+prog_source = st.radio("Input Method", ["Paste", "Upload File", "Default Test Code"])
 if prog_source == "Paste":
     program = st.text_area("Paste your assembly program here (labels supported):", height=200)
-else:
+elif prog_source == "Upload File":
     uploaded = st.file_uploader("Upload .asm file", type=["asm", "txt"])
     program = uploaded.read().decode() if uploaded else ''
+else:
+    test_path = os.path.join(os.path.dirname(__file__), "test.asm")
+    try:
+        with open(test_path, "r", encoding="utf-8") as test_file:
+            program = test_file.read()
+    except OSError:
+        program = ''
+        st.error("Could not read test.asm. Make sure it exists in the project root.")
+    st.text_area("Default test.asm", value=program, height=200, disabled=True)
+
+def render_execution_controls(prefix, container):
+    if container.button("Initialize/Reset", key=f"{prefix}_init"):
+        # Update session_state with the current sidebar config only on reset
+        st.session_state.fu_config = local_fu_config
+        # DO NOT set st.session_state.pipeline_width here; let the widget manage it
+        st.session_state.processor = Processor(
+            fu_config=st.session_state.fu_config,
+            pipeline_width=st.session_state.pipeline_width
+        )
+        st.session_state.processor.load_program(program, initial_pc=0)
+        st.session_state.cycle = 0
+        st.session_state.sim_started = True
+        st.session_state.sim_finished = False
+        st.success("Simulation initialized.")
+
+    if container.button("Step", key=f"{prefix}_step") and st.session_state.sim_started and not st.session_state.sim_finished:
+        st.session_state.processor.run_cycle()
+        st.session_state.cycle += 1
+        if getattr(st.session_state.processor, 'is_halted', False):
+            st.session_state.sim_finished = True
+
+    if container.button("Run to Completion", key=f"{prefix}_run") and st.session_state.sim_started and not st.session_state.sim_finished:
+        st.session_state.processor.run_simulation(max_cycles=1000)
+        st.session_state.sim_finished = True
+        st.session_state.cycle = st.session_state.processor.current_cycle
+
+    if container.button("Reset State", key=f"{prefix}_reset"):
+        st.session_state.processor = None
+        st.session_state.sim_started = False
+        st.session_state.sim_finished = False
+        st.session_state.cycle = 0
+        st.session_state.program = ''
+
+# --- Sidebar: Execution Controls ---
+st.sidebar.write("### Execution Controls")
+render_execution_controls("sidebar", st.sidebar)
 
 # --- Simulation Controls ---
 st.header("2. Simulation Controls")
@@ -130,7 +176,7 @@ if st.session_state.processor and st.session_state.sim_started:
                 "Result": rs.get_result() if hasattr(rs, "get_result") else None,
                 "Cycles Left": getattr(rs, "remaining_execution_cycles", None),
             })
-    st.dataframe(rs_data, width="content")
+    st.dataframe(rs_data, width="content", height="content")
 
     st.write("### Register File")
     reg_data = []
@@ -153,7 +199,7 @@ if st.session_state.processor and st.session_state.sim_started:
     iq_data = []
     for instr in st.session_state.processor.instruction_queue:
         iq_data.append({"Addr": instr.address, "Instruction": str(instr), "Issued": instr.issue_cycle, "ExecStart": instr.execute_start_cycle, "ExecEnd": instr.execute_end_cycle, "WriteBack": instr.write_back_cycle})
-    st.dataframe(iq_data, width="content")
+    st.dataframe(iq_data, width="content", height="content")
 
     if st.session_state.sim_finished:
         st.success("Simulation finished.")

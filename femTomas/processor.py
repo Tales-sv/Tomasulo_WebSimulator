@@ -23,6 +23,8 @@ class Processor:
         self.instruction_queue: List[Instruction] = []
         self.loaded_instructions_map: Dict[int, Instruction] = {} # Map address to Instruction
         self.program_counter: int = 0 # Word address
+        self.program_start: int = 0
+        self.program_end: int = -1
         
         self.current_cycle: int = 0
 
@@ -33,6 +35,9 @@ class Processor:
 
         # CDB state: (tag_of_broadcasting_rs, result_value)
         self.cdb_broadcast_this_cycle: Optional[Tuple[str, int]] = None
+        self.is_halted: bool = False
+        self.jump_in_flight: Optional[Instruction] = None
+        self.jump_remaining_cycles: int = 0
 
     def _initialize_reservation_stations(self):
         """Creates RS instances based on self.fu_config."""
@@ -56,12 +61,17 @@ class Processor:
         Memory addresses for instructions are assumed to be contiguous starting from initial_pc.
         """
         self.program_counter = initial_pc
+        self.program_start = initial_pc
+        self.program_end = initial_pc - 1
         self.current_cycle = 0
         self.instruction_queue = []
         self.loaded_instructions_map = {}
         self.timing_log = {}
         self._next_instr_uid = 0
         self.cdb_broadcast_this_cycle = None
+        self.is_halted = False
+        self.jump_in_flight = None # Holds the instruction that is currently in-flight for a jump (e.g. JMP) and waiting to resolve PC change
+        self.jump_remaining_cycles = 0
 
         # Initialize memory and registers
         self.memory = Memory(initial_data=initial_memory_data)
@@ -111,6 +121,7 @@ class Processor:
                 self.instruction_queue.append(instr)
                 self.loaded_instructions_map[current_instr_addr] = instr
                 self.timing_log[instr.uid] = {'RAW': str(instr), 'I': None, 'ES': None, 'EE': None, 'WB': None}
+                self.program_end = current_instr_addr
                 current_instr_addr += 1 # Assuming each instruction takes 1 word, PC increments by 1
             except ValueError as e:
                 print(f"Error parsing instruction '{line}' at address {current_instr_addr}: {e}")
@@ -132,14 +143,46 @@ class Processor:
         """Handles the instruction issue stage. Supports multiple-issue."""
         issued_this_cycle = 0
         while issued_this_cycle < self.pipeline_width:
+            if self.is_halted: # Processor is halted; no more instructions should be issued
+                break
             if self.program_counter not in self.loaded_instructions_map:
+                print(f"Cycle {self.current_cycle}: No instruction at PC {self.program_counter}. Stalling issue.")
                 break # No more instructions to issue or PC is out of sync
 
             instr_to_issue = self.loaded_instructions_map[self.program_counter]
 
             # Prevent re-issuing an already issued (or processing) instruction
             if self.timing_log[instr_to_issue.uid]['I'] is not None:
-                break # Can't issue same instruction twice; stop issuing this cycle
+                self.program_counter += 1
+                continue
+
+            if instr_to_issue.op_type in [OpType.NOP, OpType.HALT]: # 1 cicle opr
+                self.timing_log[instr_to_issue.uid]['I'] = self.current_cycle
+                self.timing_log[instr_to_issue.uid]['ES'] = self.current_cycle
+                self.timing_log[instr_to_issue.uid]['EE'] = self.current_cycle
+                self.timing_log[instr_to_issue.uid]['WB'] = self.current_cycle
+                instr_to_issue.issue_cycle = self.current_cycle
+                instr_to_issue.execute_start_cycle = self.current_cycle
+                instr_to_issue.execute_end_cycle = self.current_cycle
+                instr_to_issue.write_back_cycle = self.current_cycle
+                print(f"Cycle {self.current_cycle}: Issued {instr_to_issue} (no-op)")
+                self.program_counter += 1
+                issued_this_cycle += 1
+                if instr_to_issue.op_type == OpType.HALT:
+                    self.is_halted = True
+                continue
+
+            if instr_to_issue.op_type == OpType.JMP:
+                self.timing_log[instr_to_issue.uid]['I'] = self.current_cycle
+                self.timing_log[instr_to_issue.uid]['ES'] = self.current_cycle
+                instr_to_issue.issue_cycle = self.current_cycle
+                instr_to_issue.execute_start_cycle = self.current_cycle
+                self.jump_in_flight = instr_to_issue
+                self.jump_remaining_cycles = 10
+                print(f"Cycle {self.current_cycle}: Issued {instr_to_issue} (JMP)")
+                self.program_counter += 1
+                issued_this_cycle += 1
+                break
 
             fu_type_needed = instr_to_issue.get_fu_type()
             if fu_type_needed is None:
@@ -188,6 +231,43 @@ class Processor:
 
     def _execute_stage(self):
         """Handles the instruction execution stage."""
+        if self.jump_in_flight is not None: # Jump
+            self.jump_remaining_cycles -= 1
+            if self.jump_remaining_cycles <= 0:
+                instr = self.jump_in_flight
+                target_pc = instr.address + (instr.imm or 0)
+                if target_pc < self.program_start or target_pc > self.program_end:
+                    print(
+                        f"Cycle {self.current_cycle}: JMP target out of range ({target_pc}). Halting."
+                    )
+                    self.is_halted = True
+                    self.program_counter = self.program_end + 1
+                else:
+                    self.program_counter = target_pc
+                    if target_pc != instr.address + 1:
+                        skipped_start = instr.address + 1
+                        if target_pc > instr.address + 1:
+                            skipped_end = target_pc
+                        else:
+                            skipped_end = self.program_end + 1
+                        for rs_list in self.reservation_stations.values():
+                            for rs in rs_list:
+                                if rs.busy and rs.instruction:
+                                    if skipped_start <= rs.instruction.address < skipped_end:
+                                        if rs.instruction.rd is not None:
+                                            rat_tag = self.register_file.get_rat_tag(rs.instruction.rd)
+                                            if rat_tag == rs.name:
+                                                self.register_file.clear_rat_tag(rs.instruction.rd)
+                                        log = self.timing_log.get(rs.instruction.uid)
+                                        rs.clear()
+                self.timing_log[instr.uid]['EE'] = self.current_cycle
+                self.timing_log[instr.uid]['WB'] = self.current_cycle
+                instr.execute_end_cycle = self.current_cycle
+                instr.write_back_cycle = self.current_cycle
+                print(f"Cycle {self.current_cycle}: JMP completed. PC set to {self.program_counter}")
+                self.jump_in_flight = None
+            return
+
         # For each busy RS, advance execution if it has started
         for fu_type, rs_list in self.reservation_stations.items():
             for rs in rs_list:
@@ -303,7 +383,7 @@ class Processor:
     def run_cycle(self):
         """Simulates a single clock cycle."""
         self.current_cycle += 1
-        print(f"--- Cycle {self.current_cycle} Start ---")
+        # print(f"--- Cycle {self.current_cycle} Start ---")
         
         # Stages are processed in specific order to reflect data flow in a real pipeline
         # Write Back -> Execute -> Issue
@@ -315,9 +395,9 @@ class Processor:
         self._execute_stage()     # Advance execution, compute results for those finishing
         self._issue_stage()       # Issue new instructions if possible
 
-        print(f"Register File at end of Cycle {self.current_cycle}:")
-        print(self.register_file)
-        print(f"--- Cycle {self.current_cycle} End ---")
+        # print(f"Register File at end of Cycle {self.current_cycle}:")
+        # print(self.register_file)
+        # print(f"--- Cycle {self.current_cycle} End ---")
 
     def is_simulation_complete(self) -> bool:
         """Checks if all instructions have been issued, executed, and written back."""
@@ -327,10 +407,14 @@ class Processor:
         # Check if PC is beyond the last loaded instruction's address AND all issued instructions have WB
         # A simpler check: all entries in timing_log have a WB cycle.
         for instr_uid, times in self.timing_log.items():
+            if times['I'] is None and self.is_halted:
+                continue
             if times['WB'] is None:
                 return False # At least one instruction hasn't completed Write Back
         
         # Also ensure no RS is busy (especially for instructions like STORE that might not update RAT directly)
+        if self.jump_in_flight is not None:
+            return False
         for fu_list in self.reservation_stations.values():
             for rs in fu_list:
                 if rs.busy:
@@ -440,8 +524,8 @@ if __name__ == '__main__':
         print("\nFinal Register File State:")
         print(processor.register_file)
         print("\nFinal Memory State (first few words relevant to program):")
-        print("Relevant memory dump (0-5):")
-        print(processor.memory.dump(0, 5))
+        print("Relevant memory dump (0-10):")
+        print(processor.memory.dump(0, 10))
         sys.exit(0) # Exit after test run
 
     while True:
