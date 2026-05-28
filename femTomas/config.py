@@ -23,7 +23,7 @@ FU_CONFIG = {
 }
 
 # Pipeline width (for multiple-issue support; not yet implemented in processor)
-PIPELINE_WIDTH = 1  # Default single-issue; increase for multiple-issue
+PIPELINE_WIDTH = 2  # Default single-issue; increase for multiple-issue
 
 def set_fu_config(new_config: dict):
     """

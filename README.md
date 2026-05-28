@@ -3,7 +3,7 @@
 Simulador educacional do algoritmo de Tomasulo com interface em Streamlit.
 
 ## Interface web:
-acesso via: [Inserir Link](http://)
+acesso via: [Link](https://tomasulo-websimulator.streamlit.app/)
 
 ## Execução via terminal:
 Rodar o codigo completo do processador, incluindo a execução dos testes, diretamente pelo terminal:
