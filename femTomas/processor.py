@@ -1,6 +1,6 @@
 from typing import List, Dict, Optional, Tuple, Any
 
-from .config import FU_CONFIG, NUM_REGISTERS, MEMORY_SIZE_WORDS
+from .config import FU_CONFIG, MAX_CYCLES, PIPELINE_WIDTH
 from .instruction import Instruction, OpType
 from .memory import Memory
 from .register_file import RegisterFile
@@ -250,7 +250,7 @@ class Processor:
                 result = 0 # Handle division by zero
             else:
                 result = int((val_j if val_j is not None else 0) / (val_k if val_k is not None else 0))
-        # ... other ops like NAND, JMP, BEQ, JAL to be handled.
+        # TODO ... other ops like JMP, BEQ, JAL to be handled.
         # Jumps/Branches modify PC, handled differently.
         else:
             print(f"Cycle {self.current_cycle}: {rs.name} unknown op_type {op_type} for computation.")
@@ -375,22 +375,27 @@ if __name__ == '__main__':
     # Adjust sys.path for direct execution if necessary, though Processor should manage its imports
     import sys
     import os
+    import argparse
     sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
     import femTomas.config as config
 
+    parser = argparse.ArgumentParser(description="Tomasulo simulator CLI")
+    parser.add_argument(
+        "-t",
+        action="store_true",
+        help="Run a single simulation using test.asm."
+    )
+    parser.add_argument(
+        "-d",
+        action="store_true",
+        help="Use default hardware configuration without prompting."
+    )
+    args = parser.parse_args()
+
     def get_user_hardware_config(defaults: bool = False):
         print("=== Tomasulo Simulator Hardware Configuration ===")
-        default_fu_config = {
-            "LOAD":     {"rs_count": 2, "latency": 6},
-            "STORE":    {"rs_count": 2, "latency": 6},
-            "BEQ":      {"rs_count": 2, "latency": 1},
-            "CALL":     {"rs_count": 1, "latency": 1},
-            "RET":      {"rs_count": 1, "latency": 1},
-            "ADD_SUB":  {"rs_count": 4, "latency": 2},
-            "NOR":      {"rs_count": 2, "latency": 1},
-            "MUL":      {"rs_count": 2, "latency": 10},
-        }
-        default_pipeline_width = 2
+        default_fu_config = FU_CONFIG
+        default_pipeline_width = PIPELINE_WIDTH
         if(defaults):
             print("Using default hardware configuration:")
             for fu, vals in default_fu_config.items():
@@ -421,37 +426,52 @@ if __name__ == '__main__':
         return fu_config, pipeline_width
 
     # Get user hardware config interactively
-    user_fu_config, user_pipeline_width = get_user_hardware_config(True) # Pass True to use defaults without prompting
+    user_fu_config, user_pipeline_width = get_user_hardware_config(args.d) # Pass True to use defaults without prompting
 
     processor = Processor(fu_config=user_fu_config, pipeline_width=user_pipeline_width)
-    
-    while True:
-        print("\nChoose a program input method:")
-        print("1. Manual input")
-        print("2. Load from file")
-        choice = input("Enter your choice (1/2): ")
-        if choice == "1":
-            print("Enter your program (assembly instructions, one per line). Type 'END' on a new line to finish:")
-            lines = []
-            while True:
-                line = input()
-                if line.strip().upper() == 'END':
-                    break
-                lines.append(line)
-            program = '\n'.join(lines)
-        elif choice == "2":
-            filename = input("Enter the filename of your program: ")
-            with open(filename, 'r') as f:
-                program = f.read()
-        else:
-            print("Invalid choice. Please try again.")
-            continue
-        
+
+    if args.t:
+        print("Running test program from 'test.asm'...")
+        with open('test.asm', 'r') as f:
+            program = f.read()
         processor.load_program(program, initial_pc=0)
-        processor.run_simulation(max_cycles=50)
+        processor.run_simulation(max_cycles=MAX_CYCLES)
 
         print("\nFinal Register File State:")
         print(processor.register_file)
         print("\nFinal Memory State (first few words relevant to program):")
-        print("Relevant memory dump (e.g., address 30):")
-        print(processor.memory.dump(25, 10))
+        print("Relevant memory dump (0-10):")
+        print(processor.memory.dump(0, 10))
+        sys.exit(0) # Exit after test run
+
+    while True:
+      print("\n========= Simulation Begin =========") 
+      print("\nChoose a program input method:") 
+      print("1. Manual input")
+      print("2. Load from file")
+      choice = input("Enter your choice (1/2): ")
+      if choice == "1": # Manual input
+        print("Enter your program (assembly instructions, one per line). Type 'END' on a new line to finish:")
+        lines = []
+        while True:
+            line = input()
+            if line.strip().upper() == 'END':
+                break
+            lines.append(line)
+        program = '\n'.join(lines)
+      elif choice == "2": # Load from file
+          filename = input("Enter the filename of your program: ")
+          with open(filename, 'r') as f:
+              program = f.read()
+      else:
+          print("Invalid choice. Please try again.")
+          continue
+
+      processor.load_program(program, initial_pc=0)
+      processor.run_simulation(max_cycles=MAX_CYCLES)
+
+      print("\nFinal Register File State:")
+      print(processor.register_file)
+      print("\nFinal Memory State (first few words relevant to program):")
+      print("Relevant memory dump (0-10):")
+      print(processor.memory.dump(0, 10))

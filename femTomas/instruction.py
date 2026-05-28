@@ -10,7 +10,6 @@ class OpType(Enum):
     SUB = auto()     # Subtract: SUB Rdest, Rsrc1, Rsrc2
     MUL = auto()     # Multiply: MUL Rdest, Rsrc1, Rsrc2
     DIV = auto()     # Divide: DIV Rdest, Rsrc1, Rsrc2
-    NAND = auto()    # NAND: NAND Rdest, Rsrc1, Rsrc2
     JMP = auto()     # Unconditional Jump: JMP Imm (offset from PC)
     BEQ = auto()     # Branch if Equal: BEQ Rs1, Rs2, Imm (offset from PC)
     JAL = auto()     # Jump and Link: JAL Rdest, Imm (offset from PC)
@@ -64,15 +63,15 @@ class Instruction:
         # Clean the instruction string by removing comments and extra whitespace
         instruction_to_parse = self.raw_instruction.split('#')[0].strip()
 
-        parts = re.split(r"[\s,]+", instruction_to_parse, 1)
+        parts = re.split(r"[\s,]+", instruction_to_parse, maxsplit=1)
         op_str = parts[0].upper()
         # Ensure operands_str is also stripped, in case it's empty or just whitespace after comment removal
         operands_str = (parts[1] if len(parts) > 1 else "").strip()
 
-        # R-type: OP Rdest, Rsrc1, Rsrc2 (e.g., ADD, SUB, MUL, DIV, NAND)
+        # R-type: OP Rdest, Rsrc1, Rsrc2 (e.g., ADD, SUB, MUL, DIV)
         r_type_ops = {
             "ADD": OpType.ADD, "SUB": OpType.SUB, "MUL": OpType.MUL,
-            "DIV": OpType.DIV, "NAND": OpType.NAND
+            "DIV": OpType.DIV
         }
         # I-type (arithmetic/load): OP Rdest, Rsrc1, Imm (e.g., ADDI, LOAD)
         i_type_arith_load_ops = {"ADDI": OpType.ADDI, "LOAD": OpType.LOAD}
@@ -161,9 +160,8 @@ class Instruction:
         elif self.op_type == OpType.MUL: 
             return "MUL"                
         elif self.op_type == OpType.DIV:
-            return "DIV" 
-        elif self.op_type == OpType.NAND:
-            return "NAND" # Dedicated NAND unit or general ALU
+            return "MUL" # Same FU as MUL
+            # return "DIV" 
         elif self.op_type in [OpType.JMP, OpType.BEQ, OpType.JAL, OpType.RET]:
             return "BRANCH" # Branch/Jump unit
         elif self.op_type in [OpType.NOP, OpType.HALT]:
@@ -191,7 +189,7 @@ if __name__ == '__main__':
         ("LOAD R1, 100(R2)", 0, 0), ("STORE R3, -20(R4)", 1, 1),
         ("ADD R1, R2, R3", 2, 2), ("ADDI R1, R2, 123", 3, 3),
         ("SUB R4, R5, R6", 4, 4), ("MUL R7, R0, R1", 5, 5),
-        ("DIV R2, R3, R4", 6, 6), ("NAND R5, R6, R7", 7, 7),
+        ("DIV R2, R3, R4", 6, 6),
         ("JMP 1000", 8, 8), ("BEQ R1, R2, -50", 9, 9),
         ("JAL R7, 200", 10, 10), ("RET", 11, 11), # Note: RET parsing is simplified
         ("NOP", 12, 12), ("HALT", 13, 13)

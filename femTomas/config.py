@@ -5,6 +5,8 @@ NUM_REGISTERS = 8  # R0-R7, R0 is always 0
 MEMORY_SIZE_WORDS = 65536  # 128KB / 2 bytes per word = 65k words
 WORD_SIZE_BITS = 16
 
+MAX_CYCLES = 50  # Maximum cycles to prevent infinite loops in tests
+
 # Functional Unit Configuration
 # You can override this dictionary at runtime using the set_fu_config() function.
 # Each entry specifies the number of reservation stations (rs_count) and latency (cycles).
@@ -46,7 +48,7 @@ def set_pipeline_width(width: int):
 # EXECUTE_CYCLES_VARIES = True # Based on FU_CONFIG
 # WRITE_BACK_CYCLES = 1
 
-# Branch Predictor
+# Branch Predictor (not Used)
 BRANCH_PREDICTOR_ALWAYS_TAKEN = False # Always predicts "not taken"
 
 # TODO: Potentially add other global simulation parameters here if needed
