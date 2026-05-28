@@ -1,28 +1,20 @@
 import streamlit as st
 import os
 from femTomas.processor import Processor
+from femTomas.config import FU_CONFIG, PIPELINE_WIDTH
 
 st.set_page_config(page_title="Tomasulo Simulator", layout="wide")
 st.title("Tomasulo Algorithm Simulator (Educational GUI)")
 
 # --- Session State Initialization ---
 def get_default_fu_config():
-    return {
-        "LOAD":     {"rs_count": 2, "latency": 6},
-        "STORE":    {"rs_count": 2, "latency": 6},
-        "BEQ":      {"rs_count": 2, "latency": 1},
-        "CALL":     {"rs_count": 1, "latency": 1},
-        "RET":      {"rs_count": 1, "latency": 1},
-        "ADD_SUB":  {"rs_count": 4, "latency": 2},
-        "NOR":      {"rs_count": 2, "latency": 1},
-        "MUL":      {"rs_count": 2, "latency": 10},
-    }
+    return FU_CONFIG.copy()
 
 if 'processor' not in st.session_state:
     st.session_state.processor = None
     st.session_state.program = ''
     st.session_state.fu_config = get_default_fu_config()
-    st.session_state.pipeline_width = 1
+    st.session_state.pipeline_width = PIPELINE_WIDTH
     st.session_state.cycle = 0
     st.session_state.sim_started = False
     st.session_state.sim_finished = False
@@ -35,7 +27,7 @@ if st.sidebar.button("Reset to Defaults"):
     for fu, vals in defaults.items():
         st.session_state[f"rs_{fu}"] = vals['rs_count']
         st.session_state[f"lat_{fu}"] = vals['latency']
-    st.session_state.pipeline_width = 1
+    st.session_state.pipeline_width = PIPELINE_WIDTH
     st.session_state.fu_config = get_default_fu_config()
 
 # Only use session_state for widget defaults. Do not mutate session_state here.
@@ -138,13 +130,13 @@ if st.session_state.processor and st.session_state.sim_started:
                 "Result": rs.get_result() if hasattr(rs, "get_result") else None,
                 "Cycles Left": getattr(rs, "remaining_execution_cycles", None),
             })
-    st.dataframe(rs_data)
+    st.dataframe(rs_data, width="content")
 
     st.write("### Register File")
     reg_data = []
     for i, val in enumerate(st.session_state.processor.register_file.registers):
         reg_data.append({"Register": f"R{i}", "Value": val, "Tag": st.session_state.processor.register_file.rat[i]})
-    st.dataframe(reg_data)
+    st.dataframe(reg_data, width="content")
 
     st.write("### Memory (addresses 0-39)")
     mem_data = []
@@ -154,14 +146,14 @@ if st.session_state.processor and st.session_state.sim_started:
             value = memory[addr]
         except (TypeError, KeyError, IndexError):
             value = None
-        mem_data.append({"Address": addr, "Value": value})
-    st.dataframe(mem_data)
+        mem_data.append({"Addr": addr, "Val": value})
+    st.dataframe(mem_data, width="content")
 
     st.write("### Instruction Queue")
     iq_data = []
     for instr in st.session_state.processor.instruction_queue:
         iq_data.append({"Addr": instr.address, "Instruction": str(instr), "Issued": instr.issue_cycle, "ExecStart": instr.execute_start_cycle, "ExecEnd": instr.execute_end_cycle, "WriteBack": instr.write_back_cycle})
-    st.dataframe(iq_data)
+    st.dataframe(iq_data, width="content")
 
     if st.session_state.sim_finished:
         st.success("Simulation finished.")
