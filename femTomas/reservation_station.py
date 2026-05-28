@@ -72,6 +72,10 @@ class ReservationStation:
         self.remaining_execution_cycles = None
         self.result_ready_for_cdb = False
 
+    def mark_free(self) -> None:
+        """Marks the entry as free without clearing fields (for UI visibility)."""
+        self.busy = False
+
     def is_ready_to_dispatch(self) -> bool:
         """
         Checks if all operands are available (Qj and Qk are None)

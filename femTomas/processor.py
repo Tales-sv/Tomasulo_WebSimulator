@@ -262,7 +262,6 @@ class Processor:
                                             rat_tag = self.register_file.get_rat_tag(rs.instruction.rd)
                                             if rat_tag == rs.name:
                                                 self.register_file.clear_rat_tag(rs.instruction.rd)
-                                        log = self.timing_log.get(rs.instruction.uid)
                                         rs.clear()
                 self.timing_log[instr.uid]['EE'] = self.current_cycle
                 self.timing_log[instr.uid]['WB'] = self.current_cycle
@@ -336,8 +335,6 @@ class Processor:
                                                                 if rat_tag == rs_inner.name:
                                                                     self.register_file.clear_rat_tag(rs_inner.instruction.rd)
                                                             log = self.timing_log.get(rs_inner.instruction.uid)
-                                                            if log is not None:
-                                                                log['SQUASHED'] = True
                                                             rs_inner.clear()
                                 print(
                                     f"Cycle {self.current_cycle}: BEQ completed. Taken={taken}. PC={self.program_counter}"
@@ -430,8 +427,8 @@ class Processor:
                         if other_rs.snoop_cdb(rs_tag, result_val):
                             print(f"Cycle {self.current_cycle}: {other_rs.name} snooped {rs_tag} with value {result_val}")
             
-            # CRITICAL: Clear the broadcasting RS so it can be reused.
-            broadcasting_rs.clear()
+            # Mark the RS as free but keep fields for UI visibility.
+            broadcasting_rs.mark_free()
 
     def run_cycle(self):
         """Simulates a single clock cycle."""
