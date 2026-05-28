@@ -40,8 +40,10 @@ streamlit run femTomas/app.py
   - HALT
   - NOP
 
+## A ser Corrigidas:
+- JMP
+
 ## A Ser implementadas:
-JMP
 BEQ
 JAL
 RET

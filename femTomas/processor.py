@@ -38,6 +38,7 @@ class Processor:
         self.is_halted: bool = False
         self.jump_in_flight: Optional[Instruction] = None
         self.jump_remaining_cycles: int = 0
+        self.branch_in_flight: Optional[Instruction] = None
 
     def _initialize_reservation_stations(self):
         """Creates RS instances based on self.fu_config."""
@@ -72,6 +73,7 @@ class Processor:
         self.is_halted = False
         self.jump_in_flight = None # Holds the instruction that is currently in-flight for a jump (e.g. JMP) and waiting to resolve PC change
         self.jump_remaining_cycles = 0
+        self.branch_in_flight = None
 
         # Initialize memory and registers
         self.memory = Memory(initial_data=initial_memory_data)
@@ -203,7 +205,7 @@ class Processor:
                     vj = self.register_file.read_physical_reg(instr_to_issue.rs1)
 
             vk, qk = None, None
-            if instr_to_issue.op_type not in [OpType.LOAD, OpType.JAL, OpType.BEQ, OpType.JMP]:
+            if instr_to_issue.op_type not in [OpType.LOAD, OpType.JAL, OpType.JMP]:
                 if instr_to_issue.rs2 is not None:
                     rat_tag_k = self.register_file.get_rat_tag(instr_to_issue.rs2)
                     if rat_tag_k:
@@ -226,6 +228,8 @@ class Processor:
             instr_to_issue.issue_cycle = self.current_cycle
             print(f"Cycle {self.current_cycle}: Issued {instr_to_issue} to {rs.name}")
             self.program_counter += 1 # Advance PC to next instruction's address
+            if instr_to_issue.op_type == OpType.BEQ and self.branch_in_flight is None:
+                self.branch_in_flight = instr_to_issue
 
             issued_this_cycle += 1
 
@@ -269,8 +273,20 @@ class Processor:
             return
 
         # For each busy RS, advance execution if it has started
+        if self.branch_in_flight is None:
+            for fu_list in self.reservation_stations.values():
+                for rs in fu_list:
+                    if rs.busy and rs.op_type == OpType.BEQ:
+                        self.branch_in_flight = rs.instruction
+                        break
+                if self.branch_in_flight is not None:
+                    break
+
+        branch_addr = self.branch_in_flight.address if self.branch_in_flight else None
         for fu_type, rs_list in self.reservation_stations.items():
             for rs in rs_list:
+                if branch_addr is not None and rs.instruction and rs.instruction.address > branch_addr:
+                    continue
                 if rs.busy and not rs.result_ready_for_cdb:
                     # Start execution if ready and not started yet
                     if rs.is_ready_to_dispatch() and self.timing_log[rs.instruction.uid]['ES'] is None:
@@ -282,14 +298,51 @@ class Processor:
                     if self.timing_log[rs.instruction.uid]['ES'] is not None:
                         # Only compute result on the last execution cycle
                         if rs.remaining_execution_cycles == 1:
-                            computed_result = self._compute_result(rs)
-                            rs.instruction.result_value = computed_result
+                            if rs.op_type == OpType.BEQ:
+                                rs.instruction.result_value = 0
+                            else:
+                                computed_result = self._compute_result(rs)
+                                rs.instruction.result_value = computed_result
                         rs.execute_cycle()  # Always decrement cycles if executing
                         # If just finished, mark EE
                         if rs.result_ready_for_cdb and self.timing_log[rs.instruction.uid]['EE'] is None:
                             self.timing_log[rs.instruction.uid]['EE'] = self.current_cycle  # Execution End
                             rs.instruction.execute_end_cycle = self.current_cycle
                             print(f"Cycle {self.current_cycle}: {rs.name} ({rs.instruction}) finished execution. Result: {rs.instruction.result_value}")
+                            if self.branch_in_flight is not None and rs.instruction == self.branch_in_flight:
+                                taken = rs.Vj == rs.Vk
+                                if taken:
+                                    target_pc = rs.instruction.address + (rs.instruction.imm or 0)
+                                    if target_pc < self.program_start or target_pc > self.program_end:
+                                        print(
+                                            f"Cycle {self.current_cycle}: BEQ target out of range ({target_pc}). Halting."
+                                        )
+                                        self.is_halted = True
+                                        self.program_counter = self.program_end + 1
+                                    else:
+                                        self.program_counter = target_pc
+                                        if target_pc != rs.instruction.address + 1:
+                                            skipped_start = rs.instruction.address + 1
+                                            if target_pc > rs.instruction.address + 1:
+                                                skipped_end = target_pc
+                                            else:
+                                                skipped_end = self.program_end + 1
+                                            for rs_list_inner in self.reservation_stations.values():
+                                                for rs_inner in rs_list_inner:
+                                                    if rs_inner.busy and rs_inner.instruction:
+                                                        if skipped_start <= rs_inner.instruction.address < skipped_end:
+                                                            if rs_inner.instruction.rd is not None:
+                                                                rat_tag = self.register_file.get_rat_tag(rs_inner.instruction.rd)
+                                                                if rat_tag == rs_inner.name:
+                                                                    self.register_file.clear_rat_tag(rs_inner.instruction.rd)
+                                                            log = self.timing_log.get(rs_inner.instruction.uid)
+                                                            if log is not None:
+                                                                log['SQUASHED'] = True
+                                                            rs_inner.clear()
+                                print(
+                                    f"Cycle {self.current_cycle}: BEQ completed. Taken={taken}. PC={self.program_counter}"
+                                )
+                                self.branch_in_flight = None
 
     
     def _compute_result(self, rs: ReservationStation) -> int:

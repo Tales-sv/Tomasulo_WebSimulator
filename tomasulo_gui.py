@@ -181,7 +181,7 @@ if st.session_state.processor and st.session_state.sim_started:
     st.write("### Register File")
     reg_data = []
     for i, val in enumerate(st.session_state.processor.register_file.registers):
-        reg_data.append({"Register": f"R{i}", "Value": val, "Tag": st.session_state.processor.register_file.rat[i]})
+        reg_data.append({"Register": f"R{i}", "Value": val, "Tag (RAT)": st.session_state.processor.register_file.rat[i]})
     st.dataframe(reg_data, width="content")
 
     st.write("### Memory (addresses 0-39)")

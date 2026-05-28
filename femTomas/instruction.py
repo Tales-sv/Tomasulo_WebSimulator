@@ -162,7 +162,9 @@ class Instruction:
         elif self.op_type == OpType.DIV:
             return "MUL" # Same FU as MUL
             # return "DIV" 
-        elif self.op_type in [OpType.JMP, OpType.BEQ, OpType.JAL, OpType.RET]:
+        elif self.op_type == OpType.BEQ:
+            return "ADD_SUB"
+        elif self.op_type in [OpType.JMP, OpType.JAL, OpType.RET]:
             return "BRANCH" # Branch/Jump unit
         elif self.op_type in [OpType.NOP, OpType.HALT]:
             return None # NOP/HALT might not need a specific FU in the same way

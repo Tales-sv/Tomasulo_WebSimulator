@@ -4,7 +4,7 @@ STORE R7, 0(R0) # MEM[0] = 33
 ADD R2, R1, R1 # 6
 MUL R3, R1, R1 # 9
 LOAD R6, 0(R3) # MEM[9] 
-JMP 3
+BEQ R6, R1, 3
 ADDI R2, R2, 1 
 MUL R3, R3, R3
 ADDI R2, R2, 1 
