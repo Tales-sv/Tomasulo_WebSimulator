@@ -20,7 +20,7 @@ FU_CONFIG = {
     "RET":      {"rs_count": 1, "latency": 1},   # For RET
     "ADD_SUB":  {"rs_count": 4, "latency": 2},
     "NOR":      {"rs_count": 2, "latency": 1},
-    "MUL":      {"rs_count": 2, "latency": 10},
+    "MUL":      {"rs_count": 2, "latency": 10}, # For MUL and DIV
 }
 
 # Pipeline width (for multiple-issue support; not yet implemented in processor)

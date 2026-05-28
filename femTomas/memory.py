@@ -74,13 +74,13 @@ class Memory:
         non_zero_count = sum(1 for x in self.data if x != 0)
         return f"Memory({MEMORY_SIZE_WORDS} words, {non_zero_count} non-zero entries)"
 
-    def dump(self, start_address: int = 0, num_words: int = 16) -> List[Tuple[int, int]]:
-        """Returns a list of (address, value) tuples for a specified memory range."""
+    def dump(self, start_address: int = 0, num_words: int = 16) -> str:
+        """Returns a string representation of a specified memory range."""
         self._validate_address(start_address)
         end_address = min(start_address + num_words, MEMORY_SIZE_WORDS)
         if start_address >= end_address:
-            return []
-        return [(addr, self.data[addr]) for addr in range(start_address, end_address)]
+            return "Error: Address range is invalid or out of bounds."
+        return "\n".join(f"Addr {addr:04x}: {val:04x} ({val})" for addr, val in [(addr, self.data[addr]) for addr in range(start_address, end_address)])
 
 
 
@@ -111,8 +111,7 @@ if __name__ == '__main__':
     print(f"Read from last address: {mem.read_word(MEMORY_SIZE_WORDS - 1)}")
 
     print("\nMemory dump (first 5 words):")
-    for addr, val in mem.dump(0, 5):
-        print(f"Addr {addr:04x}: {val:04x} ({val})")
+    print(mem.dump(0, 5))
 
     print("\nTesting out-of-bounds access:")
     try:

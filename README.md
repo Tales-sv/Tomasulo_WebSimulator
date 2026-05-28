@@ -28,16 +28,14 @@ python -m femTomas.processor
 STORE
 LOAD
 
-JMP
-JAL
-BEQ
 
+## A Ser implementadas:
+JMP
+BEQ
+JAL
 RET
 NOP
 HALT
-
-## A Ser implementadas:
-NAND, JMP, BEQ, JAL to be handled in processor._compute_result()
 
 # RS e FU
 - 1 FU para cada RS

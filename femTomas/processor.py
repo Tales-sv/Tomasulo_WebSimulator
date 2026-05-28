@@ -440,8 +440,8 @@ if __name__ == '__main__':
         print("\nFinal Register File State:")
         print(processor.register_file)
         print("\nFinal Memory State (first few words relevant to program):")
-        print("Relevant memory dump (0-10):")
-        print(processor.memory.dump(0, 10))
+        print("Relevant memory dump (0-5):")
+        print(processor.memory.dump(0, 5))
         sys.exit(0) # Exit after test run
 
     while True:
