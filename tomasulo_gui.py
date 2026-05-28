@@ -148,7 +148,7 @@ if st.session_state.processor and st.session_state.sim_started:
 
     st.write("### Memory (addresses 0-39)")
     mem_data = []
-    memory = st.session_state.processor.memory
+    memory = st.session_state.processor.memory.toList(0,40)
     for addr in range(40):
         try:
             value = memory[addr]

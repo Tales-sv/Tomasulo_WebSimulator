@@ -68,6 +68,14 @@ class Memory:
         normalized_value = self._normalize_value(value)
         self.data[address] = normalized_value
 
+    def toList(self, start_address: int = 0, num_words: int = MEMORY_SIZE_WORDS) -> List[int]:
+        """Returns the entire memory as a list of integers."""
+        self._validate_address(start_address)
+        end_address = min(start_address + num_words, MEMORY_SIZE_WORDS)
+        if start_address >= end_address:
+            return "Error: Address range is invalid or out of bounds."
+        return self.data[start_address:end_address]
+
     def __str__(self) -> str:
         # Provides a string representation of a segment of memory, e.g., first few locations
         # or non-zero locations. For now, a simple summary.
