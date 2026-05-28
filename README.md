@@ -8,6 +8,15 @@ Rodar o codigo completo do processador, incluindo a execução dos testes, diret
 python -m femTomas.processor
 ```
 
+Rodar o código do processador com configuração default e o arquivo de teste
+```powershell
+python -m femTomas.processor -d -t
+```
+
+Rodar o Streamlit localmente para acessar a interface web:
+```powershell
+streamlit run femTomas/app.py
+```
 
 # Características:
 
